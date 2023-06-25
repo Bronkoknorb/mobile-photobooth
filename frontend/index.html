@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dropzone Example</title>
+    <script src="dropzone-6.0.0-beta.1/dropzone-min.js"></script>
+    <link
+      rel="stylesheet"
+      href="dropzone-6.0.0-beta.1/dropzone.css"
+      type="text/css"
+    />
+    <style>
+      body {
+        font-family: helvetica, arial, sans-serif;
+        padding: 6rem;
+      }
+      .dz-size {
+        visibility: hidden;
+      }
+      .dropzone .dz-preview .dz-image {
+        width: 150px;
+        height: 150px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="up-button">Fotos hochladen</div>
+
+      Bereits hochgeladen:
+      <form class="dropzone" id="my-form" action="/api/up"></form>
+    </main>
+    <script>
+      const myDropzone = new Dropzone("#my-form", {
+        acceptedFiles: "image/jpeg",
+        clickable: ["#up-button", "#my-form"],
+        dictDefaultMessage: "",
+        thumbnailWidth: 200,
+        thumbnailHeight: 200,
+      });
+
+      myDropzone.on("addedfile", (file) => {
+        // ensures that new files always get added to the front (instead of at the end)
+        const container = file.previewElement.parentElement;
+        container.removeChild(file.previewElement);
+        container.prepend(file.previewElement);
+      });
+
+      let lowestUsedImgId = -1;
+      let highestUsedImgId = 0;
+
+      for (const [key, value] of Object.entries(localStorage)) {
+        if (key.startsWith("img-")) {
+          const imgId = Number(key.substring("img-".length));
+          if (imgId > highestUsedImgId) {
+            highestUsedImgId = imgId;
+          }
+          if (lowestUsedImgId === -1 || imgId < lowestUsedImgId) {
+            lowestUsedImgId = imgId;
+          }
+
+          const img = JSON.parse(value);
+          img.old = true;
+          myDropzone.displayExistingFile(img, img.url);
+        }
+      }
+
+      const numberOfImgToStore = 100;
+
+      myDropzone.on("thumbnail", (file, dataUrl) => {
+        if (file.old === true) {
+          return;
+        }
+        highestUsedImgId++;
+        if (lowestUsedImgId === -1) {
+          lowestUsedImgId = highestUsedImgId;
+        }
+        if (highestUsedImgId - lowestUsedImgId >= numberOfImgToStore) {
+          localStorage.removeItem(`img-${lowestUsedImgId}`);
+          lowestUsedImgId++;
+        }
+        localStorage.setItem(
+          `img-${highestUsedImgId}`,
+          JSON.stringify({ name: file.name, url: dataUrl })
+        );
+      });
+    </script>
+  </body>
+</html>
