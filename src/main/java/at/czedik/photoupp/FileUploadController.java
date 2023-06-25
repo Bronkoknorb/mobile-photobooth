@@ -1,5 +1,9 @@
 package at.czedik.photoupp;
 
+import java.io.IOException;
+import java.io.InputStream;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -15,6 +19,13 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api")
 public class FileUploadController {
 
+	private StorageService service;
+
+	@Autowired
+	public FileUploadController(StorageService service) {
+		this.service = service;
+	}
+
 	@GetMapping("/serve/{filename:.+}")
 	@ResponseBody
 	public ResponseEntity<Resource> serveFile(@PathVariable String filename) {
@@ -27,10 +38,10 @@ public class FileUploadController {
 
 	@PostMapping("/up")
 	@ResponseBody
-	public String handleFileUpload(@RequestParam("file") MultipartFile file) {
-
-		// TODOstorageService.store(file);
-
-		return "Ok";
+	public String handleFileUpload(@RequestParam("file") MultipartFile file) throws IOException {
+		try (InputStream inputStream = file.getInputStream()) {
+			service.store(file.getOriginalFilename(), inputStream);
+		}
+		return "Stored";
 	}
 }
