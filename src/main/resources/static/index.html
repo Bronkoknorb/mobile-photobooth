@@ -4,7 +4,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dropzone Example</title>
+    <title>PhotoUpp</title>
     <script src="dropzone-6.0.0-beta.1/dropzone-min.js"></script>
     <link
       rel="stylesheet"
@@ -51,6 +51,8 @@
       let lowestUsedImgId = -1;
       let highestUsedImgId = 0;
 
+      const oldImages = [];
+
       for (const [key, value] of Object.entries(localStorage)) {
         if (key.startsWith("img-")) {
           const imgId = Number(key.substring("img-".length));
@@ -62,10 +64,16 @@
           }
 
           const img = JSON.parse(value);
+          img.imgId = imgId;
           img.old = true;
-          myDropzone.displayExistingFile(img, img.url);
+
+          oldImages.push(img);
         }
       }
+
+      oldImages.sort((a, b) => a.imgId - b.imgId);
+
+      oldImages.forEach((img) => myDropzone.displayExistingFile(img, img.url));
 
       const numberOfImgToStore = 100;
 
