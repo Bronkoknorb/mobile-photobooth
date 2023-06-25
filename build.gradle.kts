@@ -4,7 +4,7 @@ plugins {
 	id("io.spring.dependency-management") version "1.1.0"
 }
 
-group = "at.czedik.photoup"
+group = "at.czedik.photoupp"
 version = "1.0.0-SNAPSHOT"
 
 java {
