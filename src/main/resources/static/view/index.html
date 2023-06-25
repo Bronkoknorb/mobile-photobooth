@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PhotoUpp</title>
+    <style>
+      body {
+        font-family: helvetica, arial, sans-serif;
+        padding: 0;
+        margin: 0;
+      }
+      .photo {
+        max-width: 100vw;
+        max-height: 100vh;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="photocontainer"></div>
+    <script>
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function preloadImage(url) {
+        const img = new Image();
+        img.src = url;
+        return new Promise((resolve, reject) => {
+          if (img.complete) {
+            return Promise.resolve();
+          } else {
+            img.addEventListener("load", (e) => resolve(), { once: true });
+            img.addEventListener("error", (e) => reject(), { once: true });
+          }
+        });
+      }
+
+      const photoContainer = document.querySelector("#photocontainer");
+
+      let i = 0;
+      let photoList = [];
+      let lastUpdate = 0;
+
+      async function init() {
+        while (true) {
+          try {
+            const response = await fetch("/api/list", {
+              cache: "no-cache",
+              // note: no-cache ensures that at least conditional request is always made (but if the content has not changed the response will be empty)
+            });
+            const jsonData = await response.json();
+            let newPhotoList = jsonData.photos;
+            photoList = newPhotoList;
+          } catch (error) {
+            console.error(error);
+          }
+
+          // TODO handle photolist empty
+
+          i = (i + 1) % photoList.length;
+          const photo = new Image();
+          photo.className = "photo";
+          photo.src = "/api/serve/" + photoList[i];
+          photoContainer.replaceChildren(photo);
+          await sleep(1000);
+        }
+      }
+
+      init();
+    </script>
+  </body>
+</html>

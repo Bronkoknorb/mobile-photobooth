@@ -2,13 +2,16 @@ package at.czedik.photoupp;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,6 +23,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -45,6 +50,10 @@ public class StorageService {
 
 	private final Set<String> alreadyUploadedHashes = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
+	// writes: atomically with copy-on-write guarded by this.
+	private volatile List<String> finalFiles = Collections.emptyList();
+	private volatile String etag;
+
 	@Autowired
 	public StorageService(@Value("${storage.dir}") String storageDir) {
 		Path storagePath = Path.of(storageDir).toAbsolutePath().normalize();
@@ -63,10 +72,11 @@ public class StorageService {
 			throw new IllegalArgumentException("Cannot create directory", e);
 		}
 
-		initAlreadyUploadedHashes();
+		initFiles();
 	}
 
-	private void initAlreadyUploadedHashes() {
+	private void initFiles() {
+		List<String> newFinalFiles = new ArrayList<>();
 		try (Stream<Path> stream = Files.list(finalDir)) {
 			stream.forEach(file -> {
 				String filename = file.getFileName().toString();
@@ -74,6 +84,7 @@ public class StorageService {
 				if (matcher.matches()) {
 					String hash = matcher.group(1);
 					alreadyUploadedHashes.add(hash);
+					newFinalFiles.add(filename);
 				} else {
 					log.warn("Ignoring unexpected file in final dir: {}", filename);
 				}
@@ -81,6 +92,12 @@ public class StorageService {
 		} catch (IOException e) {
 			log.error("Cannot list {}", finalDir, e);
 		}
+		finalFiles = newFinalFiles;
+		updateETag();
+	}
+
+	private void updateETag() {
+		etag = UUID.randomUUID().toString();
 	}
 
 	public void store(String filename, InputStream inputStream) throws IOException {
@@ -101,8 +118,20 @@ public class StorageService {
 		Path finalFile = getFinalFileName(nameWithoutExtension, hash);
 
 		Files.move(tempFile, finalFile);
+		
+		String finalFileName = finalFile.getFileName().toString();
+		addFinalFile(finalFileName);
 
-		log.info("Stored file: {}", finalFile.getFileName());
+		log.info("Stored file: {}", finalFileName);
+	}
+
+	private void addFinalFile(String finalFileName) {
+		synchronized (this) {
+			List<String> newFinalFiles = new ArrayList<>(finalFiles);
+			newFinalFiles.add(finalFileName);
+			finalFiles = Collections.unmodifiableList(newFinalFiles);
+			updateETag();
+		}
 	}
 
 	private boolean checkForDuplicates(String hash) {
@@ -142,4 +171,19 @@ public class StorageService {
 		return hash;
 	}
 
+	public PhotoList list() {
+		return new PhotoList(finalFiles);
+	}
+
+	public String getETag() {
+		return etag;
+	}
+
+	public Resource load(String filename) throws MalformedURLException {
+		if (!finalFilenamePattern.matcher(filename).matches()) {
+			throw new IllegalArgumentException("Illegal filename: " + filename);
+		}
+		Path file = finalDir.resolve(filename);
+		return new UrlResource(file.toUri());
+	}
 }
