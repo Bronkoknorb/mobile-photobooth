@@ -22,12 +22,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api")
-public class FileUploadController {
+public class MainController {
 
 	private StorageService service;
 
 	@Autowired
-	public FileUploadController(StorageService service) {
+	public MainController(StorageService service) {
 		this.service = service;
 	}
 	
