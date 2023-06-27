@@ -18,42 +18,53 @@
         position: absolute;
         top: 50%;
         left: 50%;
+        translate: -50% -50%;
         background: linear-gradient(110deg, white, rgb(245, 245, 245));
         padding: 5vmin;
         box-shadow: 0.5vmin 0.5vmin 1.5vmin gray;
-        transform: translate(-70%, -50%) rotate(4deg);
       }
       .slideout {
-        animation-duration: 1s;
+        animation-delay: 200ms;
+        animation-duration: 500ms;
         animation-name: slideout;
         animation-fill-mode: forwards;
         animation-timing-function: ease-in-out;
       }
       .slidein {
-        animation-duration: 1s;
+        /* we set initial opacity to 0 and delay the animation a bit
+        so that we get a first (transparent) rendering, which speeds up the animation */
+        opacity: 0;
+        animation-delay: 100ms;
+        animation-duration: 700ms;
         animation-name: slidein;
         animation-fill-mode: forwards;
         animation-timing-function: ease-in;
       }
       @keyframes slideout {
         to {
-          transform: translate(-150vw, -50vh) scale(1.5) rotate(-10deg);
+          translate: 150vw 150vh;
+          transform: scale(1.5) rotate(-10deg);
         }
       }
       @keyframes slidein {
         from {
-          transform: translate(-150vw, -50vh) scale(1.5) rotate(-10deg);
+          translate: -150vw -50vh;
+          transform: scale(1.5) rotate(-10deg);
+          opacity: 1;
+        }
+        to {
+          opacity: 1;
         }
       }
       .photo > img {
-        max-height: 70vmin;
-        max-width: 70vmin;
+        max-height: 70vh;
+        max-width: 50vw;
         vertical-align: middle;
       }
     </style>
   </head>
   <body>
-    <div class="photo">
+    <!--<div class="photo">
       <img
         src="/api/serve/2023-01-03_22-15-52_IMG_20230103_221550__19324efd682818fbf781665d036cd68be0a18bd31ece89b2bf086dc8d702e791.jpg"
       />
@@ -62,9 +73,9 @@
       <img
         src="/api/serve/2023-01-29_12-26-04_IMG_20230129_122602__c08ab8004a6db402b9a458a64ea012b1bbddcd1627fe95ec0cb018d5a19c4b20.jpg"
       />
-    </div>
+    </div>-->
 
-    <div id="photocontainer">Waiting for photos...</div>
+    <div id="photocontainer"></div>
     <script>
       function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
@@ -86,32 +97,122 @@
       const photoContainer = document.querySelector("#photocontainer");
 
       let i = 0;
-      let photoList = [];
-      let lastUpdate = 0;
+
+      // all photos
+      let photos = new Set();
+
+      // new photos not shown yet
+      let newPhotos = [];
+
+      let numberToPreload = 3;
+      let photosToPreload = [];
+
+      let shownPhotos = [];
+
+      async function fetchAndUpdatePhotos() {
+        let loadedPhotos;
+        try {
+          const response = await fetch("/api/list", {
+            cache: "no-cache",
+            // note: no-cache ensures that at least conditional request is always made (but if the content has not changed the response will be empty)
+          });
+          const jsonData = await response.json();
+          loadedPhotos = jsonData.photos;
+        } catch (error) {
+          console.error(error);
+          return;
+        }
+
+        if (photos.size > 0) {
+          newPhotos.push(...loadedPhotos.filter((p) => !photos.has(p)));
+        }
+        photos = new Set(loadedPhotos);
+      }
+
+      function partition(array, isValid) {
+        return array.reduce(
+          ([pass, fail], elem) => {
+            return isValid(elem)
+              ? [[...pass, elem], fail]
+              : [pass, [...fail, elem]];
+          },
+          [[], []]
+        );
+      }
+
+      function getRandomIntInclusive(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1) + min);
+      }
 
       async function init() {
         while (true) {
-          try {
-            const response = await fetch("/api/list", {
-              cache: "no-cache",
-              // note: no-cache ensures that at least conditional request is always made (but if the content has not changed the response will be empty)
+          await fetchAndUpdatePhotos();
+
+          newPhotos.forEach((name) => {
+            const img = new Image();
+            img.src = "/api/serve/" + encodeURIComponent(name);
+            photosToPreload.unshift({
+              name,
+              img,
+              new: true,
             });
-            const jsonData = await response.json();
-            let newPhotoList = jsonData.photos;
-            photoList = newPhotoList;
-          } catch (error) {
-            console.error(error);
+          });
+          newPhotos = [];
+
+          const [completed, notCompleted] = partition(
+            photosToPreload,
+            (p) => p.img.complete
+          );
+          photosToPreload = notCompleted;
+
+          const start = Date.now();
+
+          for (const p of completed) {
+            const photoDiv = document.createElement("div");
+            photoDiv.className = "photo slidein";
+            photoDiv.appendChild(p.img);
+            const rotation = getRandomIntInclusive(-10, 10);
+            photoDiv.style.top = "50%";
+            photoDiv.style.left = "40%";
+            photoDiv.style.transform = `rotate(${rotation}deg)`;
+            photoContainer.appendChild(photoDiv);
+
+            shownPhotos.forEach((p) => {
+              p.photoDiv.style.transition = "top 300ms, left 300ms";
+              p.photoDiv.style.transitionDelay = "700ms";
+              p.photoDiv.style.top =
+                parseInt(p.photoDiv.style.top, 10) + 5 + "%";
+              p.photoDiv.style.left =
+                parseInt(p.photoDiv.style.left, 10) + 5 + "%";
+            });
+
+            shownPhotos.unshift({
+              name: p.name,
+              photoDiv,
+            });
+
+            let removedPhoto = null;
+            if (shownPhotos.length > 10) {
+              removedPhoto = shownPhotos.pop();
+              removedPhoto.photoDiv.classList.remove("slidein");
+              removedPhoto.photoDiv.classList.add("slideout");
+            }
+
+            await sleep(1000);
+
+            if (removedPhoto != null) {
+              photoContainer.removeChild(removedPhoto.photoDiv);
+            }
           }
 
-          // TODO handle photolist empty
+          const timeElapsed = Date.now() - start;
 
-          i = (i + 1) % photoList.length;
-          const photo = new Image();
-          photo.src = "/api/serve/" + photoList[i];
-          //TODO photoContainer.replaceChildren(photo);
-          await sleep(1000);
-          // TODO
-          return;
+          const sleepTime = 1000 - timeElapsed;
+          if (sleepTime > 0) {
+            await sleep(sleepTime);
+          }
         }
       }
 
