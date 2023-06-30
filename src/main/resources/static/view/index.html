@@ -76,9 +76,29 @@
           opacity: 1;
         }
       }
+
+      .qr {
+        display: inline-block;
+        position: absolute;
+        right: 1vmin;
+        top: 1vmin;
+        background-color: white;
+        border-radius: 3vmin;
+        padding: 3vmin;
+        text-align: center;
+      }
+      .qr img {
+        width: 20vmin;
+        height: 20vmin;
+      }
     </style>
   </head>
   <body>
+    <div class="qr">
+      <div>Fotos hochladen:</div>
+      <img src="qr.svg" />
+      <div>https://up.czedik.at</div>
+    </div>
     <!--<div class="photo slideout-from-top">
       <img
         src="/api/serve/2023-01-03_22-15-52_IMG_20230103_221550__19324efd682818fbf781665d036cd68be0a18bd31ece89b2bf086dc8d702e791.jpg"
