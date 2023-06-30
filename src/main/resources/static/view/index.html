@@ -162,6 +162,10 @@
         );
       }
 
+      function getRandomItem(items) {
+        return items[Math.floor(Math.random() * items.length)];
+      }
+
       function getRandomIntInclusive(min, max) {
         min = Math.ceil(min);
         max = Math.floor(max);
@@ -248,7 +252,7 @@
           const numberOfPhotosToPreload =
             numberOfPhotosToShow - shownPhotos.length + 3;
 
-          const extraPhotosToPreload =
+          let extraPhotosToPreload =
             numberOfPhotosToPreload - photosToPreload.length;
 
           if (extraPhotosToPreload > 0) {
@@ -260,8 +264,22 @@
               .map((p) => p.name)
               .forEach((name) => preloadingCandidates.delete(name));
 
-            // TODO select `extraPhotosToPreload` random items from preloadingCandidates
+            extraPhotosToPreload = Math.min(
+              extraPhotosToPreload,
+              preloadingCandidates.size
+            );
+
             const toPreload = [];
+            for (let i = 0; i < extraPhotosToPreload; i++) {
+              // this is quite inefficient... we constantly convert the rather long Set to an array
+              const photoName = getRandomItem(Array.from(preloadingCandidates));
+              preloadingCandidates.delete(photoName);
+              toPreload.push(photoName);
+            }
+
+            for (const name of toPreload) {
+              preloadImage(name, false);
+            }
           }
 
           const timeElapsed = Date.now() - start;
