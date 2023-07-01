@@ -116,9 +116,33 @@
         return new Promise((resolve) => setTimeout(resolve, ms));
       }
 
+      function partition(array, isValid) {
+        return array.reduce(
+          ([pass, fail], elem) => {
+            return isValid(elem)
+              ? [[...pass, elem], fail]
+              : [pass, [...fail, elem]];
+          },
+          [[], []]
+        );
+      }
+
+      function getRandomItem(items) {
+        return items[Math.floor(Math.random() * items.length)];
+      }
+
+      function getRandomIntInclusive(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1) + min);
+      }
+
       const photoContainer = document.querySelector("#photocontainer");
 
       const numberOfPhotosToShow = 7;
+      const numberOfPhotosToPreload = 3;
+
+      let paused = false;
 
       // all photos
       let photos = new Set();
@@ -126,9 +150,10 @@
       // new photos not shown yet
       let newPhotos = [];
 
-      let numberToPreload = 3;
+      // photos currently getting preloaded
       let photosToPreload = [];
 
+      // photos currently shown
       let shownPhotos = [];
 
       async function fetchAndUpdatePhotos() {
@@ -151,27 +176,6 @@
         photos = new Set(loadedPhotos);
       }
 
-      function partition(array, isValid) {
-        return array.reduce(
-          ([pass, fail], elem) => {
-            return isValid(elem)
-              ? [[...pass, elem], fail]
-              : [pass, [...fail, elem]];
-          },
-          [[], []]
-        );
-      }
-
-      function getRandomItem(items) {
-        return items[Math.floor(Math.random() * items.length)];
-      }
-
-      function getRandomIntInclusive(min, max) {
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1) + min);
-      }
-
       function preloadImage(name, isNew) {
         const img = new Image();
         img.src = "/api/serve/" + encodeURIComponent(name);
@@ -182,105 +186,116 @@
         });
       }
 
-      async function init() {
-        while (true) {
+      function preloadNewPhotos() {
+        newPhotos.forEach((name) => preloadImage(name, true));
+        newPhotos = [];
+      }
+
+      function preloadOldPhotosIfNeeded() {
+        let toPreloadCount =
+          numberOfPhotosToShow - shownPhotos.length + numberOfPhotosToPreload;
+
+        toPreloadCount = toPreloadCount - photosToPreload.length;
+
+        if (toPreloadCount <= 0) return;
+
+        const preloadingCandidates = new Set(photos);
+        photosToPreload
+          .map((p) => p.name)
+          .forEach((name) => preloadingCandidates.delete(name));
+        shownPhotos
+          .map((p) => p.name)
+          .forEach((name) => preloadingCandidates.delete(name));
+
+        toPreloadCount = Math.min(toPreloadCount, preloadingCandidates.size);
+
+        if (toPreloadCount <= 0) return;
+
+        const toPreload = [];
+        for (let i = 0; i < toPreloadCount; i++) {
+          // this is quite inefficient... we repeatedly convert the rather long Set to an array
+          const photoName = getRandomItem(Array.from(preloadingCandidates));
+          preloadingCandidates.delete(photoName);
+          toPreload.push(photoName);
+        }
+
+        // TODO test this (e.g. print out toPreload array)
+        for (const name of toPreload) {
+          preloadImage(name, false);
+        }
+      }
+
+      async function showNewPhotos() {
+        const [completedNew, others] = partition(
+          photosToPreload,
+          (p) => p.img.complete && p.isNew
+        );
+        photosToPreload = others;
+
+        for (const p of completedNew) {
+          const photoDiv = document.createElement("div");
+          photoDiv.className = "photo slidein";
+          photoDiv.appendChild(p.img);
+          const rotation = getRandomIntInclusive(-10, 10);
+          photoDiv.style.top = "50%";
+          photoDiv.style.left = "40%";
+          photoDiv.style.transform = `rotate(${rotation}deg)`;
+          photoContainer.appendChild(photoDiv);
+
+          let next = true;
+          shownPhotos.forEach((p) => {
+            p.photoDiv.style.transition = "transform 300ms";
+            p.photoDiv.style.transitionDelay = "700ms";
+            p.rotation += getRandomIntInclusive(-3, 3);
+            p.scale *= 0.8;
+            p.shiftTop += 10;
+            if (next) {
+              p.shiftLeft += 20;
+              next = false;
+            } else {
+              p.shiftLeft += 10;
+            }
+            p.photoDiv.style.transform = `translate(${p.shiftLeft}vw, ${p.shiftTop}vh) scale(${p.scale}) rotate(${p.rotation}deg)`;
+          });
+
+          shownPhotos.unshift({
+            name: p.name,
+            rotation,
+            shiftTop: 0,
+            shiftLeft: 0,
+            scale: 1,
+            photoDiv,
+          });
+
+          let removedPhoto = null;
+          if (shownPhotos.length > numberOfPhotosToShow) {
+            removedPhoto = shownPhotos.pop();
+            removedPhoto.photoDiv.classList.remove("slidein");
+            removedPhoto.photoDiv.classList.add("slideout");
+          }
+
+          await sleep(1000);
+
+          if (removedPhoto != null) {
+            photoContainer.removeChild(removedPhoto.photoDiv);
+          }
+        }
+      }
+
+      async function renderLoop() {
+        while (!paused) {
           await fetchAndUpdatePhotos();
 
           // TODO just for testing
           //newPhotos = Array.from(photos);
 
-          newPhotos.forEach((name) => preloadImage(name, true));
-          newPhotos = [];
-
-          const [completedNew, others] = partition(
-            photosToPreload,
-            (p) => p.img.complete && p.isNew
-          );
-          photosToPreload = others;
+          preloadNewPhotos();
 
           const start = Date.now();
 
-          for (const p of completedNew) {
-            const photoDiv = document.createElement("div");
-            photoDiv.className = "photo slidein";
-            photoDiv.appendChild(p.img);
-            const rotation = getRandomIntInclusive(-10, 10);
-            photoDiv.style.top = "50%";
-            photoDiv.style.left = "40%";
-            photoDiv.style.transform = `rotate(${rotation}deg)`;
-            photoContainer.appendChild(photoDiv);
+          await showNewPhotos();
 
-            let next = true;
-            shownPhotos.forEach((p) => {
-              p.photoDiv.style.transition = "transform 300ms";
-              p.photoDiv.style.transitionDelay = "700ms";
-              p.rotation += getRandomIntInclusive(-3, 3);
-              p.scale *= 0.8;
-              p.shiftTop += 10;
-              if (next) {
-                p.shiftLeft += 20;
-                next = false;
-              } else {
-                p.shiftLeft += 10;
-              }
-              p.photoDiv.style.transform = `translate(${p.shiftLeft}vw, ${p.shiftTop}vh) scale(${p.scale}) rotate(${p.rotation}deg)`;
-            });
-
-            shownPhotos.unshift({
-              name: p.name,
-              rotation,
-              shiftTop: 0,
-              shiftLeft: 0,
-              scale: 1,
-              photoDiv,
-            });
-
-            let removedPhoto = null;
-            if (shownPhotos.length > numberOfPhotosToShow) {
-              removedPhoto = shownPhotos.pop();
-              removedPhoto.photoDiv.classList.remove("slidein");
-              removedPhoto.photoDiv.classList.add("slideout");
-            }
-
-            await sleep(1000);
-
-            if (removedPhoto != null) {
-              photoContainer.removeChild(removedPhoto.photoDiv);
-            }
-          }
-
-          const numberOfPhotosToPreload =
-            numberOfPhotosToShow - shownPhotos.length + 3;
-
-          let extraPhotosToPreload =
-            numberOfPhotosToPreload - photosToPreload.length;
-
-          if (extraPhotosToPreload > 0) {
-            const preloadingCandidates = new Set(photos);
-            photosToPreload
-              .map((p) => p.name)
-              .forEach((name) => preloadingCandidates.delete(name));
-            shownPhotos
-              .map((p) => p.name)
-              .forEach((name) => preloadingCandidates.delete(name));
-
-            extraPhotosToPreload = Math.min(
-              extraPhotosToPreload,
-              preloadingCandidates.size
-            );
-
-            const toPreload = [];
-            for (let i = 0; i < extraPhotosToPreload; i++) {
-              // this is quite inefficient... we constantly convert the rather long Set to an array
-              const photoName = getRandomItem(Array.from(preloadingCandidates));
-              preloadingCandidates.delete(photoName);
-              toPreload.push(photoName);
-            }
-
-            for (const name of toPreload) {
-              preloadImage(name, false);
-            }
-          }
+          preloadOldPhotosIfNeeded();
 
           const timeElapsed = Date.now() - start;
 
@@ -291,7 +306,7 @@
         }
       }
 
-      init();
+      renderLoop();
     </script>
   </body>
 </html>
