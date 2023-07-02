@@ -11,3 +11,7 @@ Photos are shown live on a screen.
 ## Run
 
     docker run -p 8082:8080 --volume ~/photo-upp-data:/photo-upp-data photoupp
+
+## My Build & Run script
+
+    ./restart.sh
