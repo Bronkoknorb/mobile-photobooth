@@ -14,10 +14,28 @@
     <style>
       body {
         font-family: helvetica, arial, sans-serif;
-        padding: 6rem;
+        padding: 3rem;
+        text-align: center;
       }
+
+      #up-button {
+        display: inline-block;
+        background-color: rgb(107, 107, 247);
+        text-align: center;
+        font-size: 50px;
+        padding: 1rem;
+        margin: auto;
+        margin-bottom: 3rem;
+        border-radius: 1rem;
+        box-shadow: 8px 8px 0 black;
+      }
+
       .dz-size {
         visibility: hidden;
+      }
+      .dropzone {
+        border-width: 0;
+        padding: 0;
       }
       .dropzone .dz-preview .dz-image {
         width: 150px;
@@ -31,9 +49,8 @@
   </head>
   <body>
     <main>
-      <div id="up-button">Fotos hochladen</div>
-
-      Bereits hochgeladen:
+      <div id="up-button">Foto hochladen</div>
+      <br />Bereits hochgeladen:
       <form class="dropzone" id="my-form" action="/api/up"></form>
     </main>
     <script>
