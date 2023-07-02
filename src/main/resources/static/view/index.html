@@ -17,8 +17,8 @@
       .photo {
         display: inline-block;
         position: absolute;
-        top: 50%;
-        left: 50%;
+        top: 55%;
+        left: 40%;
         translate: -50% -50%;
         background: linear-gradient(110deg, white, rgb(245, 245, 245));
         padding: 4vmin;
@@ -31,14 +31,14 @@
       }
 
       .slideout-from-top {
-        animation-duration: 3s;
+        animation-duration: 2.5s;
         animation-name: slideout-from-top;
         animation-fill-mode: forwards;
         animation-timing-function: ease-in;
       }
       @keyframes slideout-from-top {
         to {
-          transform: translate(-150vw, 150vh) scale(1.5) rotate(-20deg);
+          transform: translate(0vw, 150vh) scale(1.5) rotate(-30deg);
         }
       }
 
@@ -47,7 +47,7 @@
         so that we get a first (transparent) rendering, which speeds up the animation */
         opacity: 0;
         animation-delay: 100ms;
-        animation-duration: 700ms;
+        animation-duration: 900ms;
         animation-name: slidein;
         animation-fill-mode: forwards;
         animation-timing-function: ease-in;
@@ -81,15 +81,13 @@
         opacity: 0;
         animation-delay: 100ms;
         animation-duration: 700ms;
-        animation-name: slidein;
+        animation-name: drop-to-top;
         animation-fill-mode: forwards;
         animation-timing-function: ease-in;
       }
       @keyframes drop-to-top {
         from {
-          translate: -150vw -50vh;
-          scale: 1.5;
-          rotate: -10deg;
+          transform: translate(-150vw, -50vh) scale(1.5) rotate(100deg);
           opacity: 1;
         }
         to {
@@ -123,24 +121,13 @@
   <body>
     <div class="qr">
       <div>Fotos hochladen:</div>
-      <img src="qr.svg" />
+      <img src="qr.svg" alt="QR Code" />
       <div>
         <a href="https://up.czedik.at"
           ><span class="light">https://</span><strong>up.czedik.at</strong></a
         >
       </div>
     </div>
-    <!--<div class="photo slideout-from-top">
-      <img
-        src="/api/serve/2023-01-03_22-15-52_IMG_20230103_221550__19324efd682818fbf781665d036cd68be0a18bd31ece89b2bf086dc8d702e791.jpg"
-      />
-    </div>
-    <div class="photo">
-      <img
-        src="/api/serve/2023-01-29_12-26-04_IMG_20230129_122602__c08ab8004a6db402b9a458a64ea012b1bbddcd1627fe95ec0cb018d5a19c4b20.jpg"
-      />
-    </div>-->
-
     <div id="photocontainer"></div>
     <script>
       function sleep(ms) {
@@ -172,7 +159,7 @@
 
       const numberOfPhotosToShow = 8;
       const numberOfPhotosToPreload = 3;
-      const showTopPhotoForMilliseconds = 5000;
+      const showTopPhotoForMilliseconds = 4000;
 
       let paused = false;
 
@@ -268,8 +255,6 @@
         }
         photoDiv.appendChild(preloadedPhoto.img);
         const rotation = getRandomIntInclusive(-10, 10);
-        photoDiv.style.top = "55%";
-        photoDiv.style.left = "40%";
 
         const p = {
           name: preloadedPhoto.name,
@@ -298,12 +283,28 @@
         p.shiftTop = 5 * pos;
         if (pos === 0) {
           p.shiftLeft = 0;
-        } else if (pos === 1) {
-          p.shiftLeft = 20;
         } else {
           p.shiftLeft = 20 + 5 * (pos - 1);
         }
         p.photoDiv.style.transform = `translate(${p.shiftLeft}vw, ${p.shiftTop}vh) scale(${p.scale}) rotate(${p.rotation}deg)`;
+      }
+
+      function repositionPhotos(slipDown) {
+        let pos = -1;
+        for (const p of shownPhotos) {
+          pos++;
+          if (slipDown && pos === 0) {
+            continue;
+          }
+          if (slipDown) {
+            p.photoDiv.style.transition = "transform 300ms";
+          } else {
+            p.photoDiv.style.transition = "transform 3s";
+          }
+
+          p.rotation += getRandomIntInclusive(-3, 3);
+          setPhotoTransformForPosition(p, pos);
+        }
       }
 
       async function dropNewPhotos() {
@@ -314,31 +315,27 @@
         preloadingPhotos = others;
 
         for (const p of completedNew) {
-          let pos = 1;
-          shownPhotos.forEach((p) => {
-            p.photoDiv.style.transition = "transform 300ms";
-            p.photoDiv.style.transitionDelay = "700ms";
-            p.rotation += getRandomIntInclusive(-3, 3);
-            setPhotoTransformForPosition(p, pos);
-            pos++;
-          });
-
           showPhoto(p, true, 0);
+
+          await sleep(700);
+
+          repositionPhotos(true);
 
           let removedPhoto = null;
           if (shownPhotos.length > numberOfPhotosToShow) {
             removedPhoto = shownPhotos.pop();
-            removedPhoto.photoDiv.classList.remove("drop-to-top");
-            removedPhoto.photoDiv.classList.remove("slidein");
             removedPhoto.photoDiv.classList.add("slideout");
           }
 
           await sleep(1000);
 
+          shownPhotos[0].photoDiv.classList.remove("drop-to-top");
+
+          // this sleep here is just to ensure the class gets removed before the next animation
+          await sleep(100);
+
           if (removedPhoto != null) {
             photoContainer.removeChild(removedPhoto.photoDiv);
-
-            // TODO add removed photo back to preloadingPhotos array?
           }
         }
       }
@@ -368,6 +365,12 @@
           showPhoto(p, false, pos);
           pos++;
         }
+
+        await sleep(1000);
+
+        for (const p of shownPhotos) {
+          p.photoDiv.classList.remove("slidein");
+        }
       }
 
       async function slideOutTopPhoto() {
@@ -379,9 +382,13 @@
 
         const topPhoto = shownPhotos.shift();
 
-        // TODO animation
+        topPhoto.photoDiv.classList.add("slideout-from-top");
 
-        await sleep(1000);
+        repositionPhotos(false);
+
+        await slideInOldPhotos();
+
+        await sleep(3000);
 
         topPhotoShownSince = Date.now();
         photoContainer.removeChild(topPhoto.photoDiv);
@@ -390,9 +397,6 @@
       async function renderLoop() {
         while (!paused) {
           await fetchAndUpdatePhotos();
-
-          // TODO just for testing
-          //newPhotos = Array.from(photos);
 
           preloadNewPhotos();
 
