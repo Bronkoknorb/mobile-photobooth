@@ -24,6 +24,14 @@
         background-color: #fffcf2;
         overflow: hidden;
       }
+      main {
+        padding: 0;
+        margin: 0;
+        display: block;
+        height: 100%;
+        width: 100%;
+        overflow: hidden;
+      }
 
       h1 {
         font-family: "Great Vibes", cursive, serif;
@@ -171,361 +179,363 @@
     </style>
   </head>
   <body>
-    <h1>Isabella<br /><span class="ring-symbol">⚭</span><br />Oliver</h1>
-    <div class="title">Fotos von damals und heute</div>
-    <div class="qr">
-      <div>Fotos hochladen:</div>
-      <img src="qr.svg" alt="QR Code" />
-      <div>
-        <a href="https://up.czedik.at"
-          ><span class="light">https://</span><strong>up.czedik.at</strong></a
-        >
+    <main>
+      <h1>Isabella<br /><span class="ring-symbol">⚭</span><br />Oliver</h1>
+      <div class="title">Fotos von damals und heute</div>
+      <div class="qr">
+        <div>Fotos hochladen:</div>
+        <img src="qr.svg" alt="QR Code" />
+        <div>
+          <a href="https://up.czedik.at"
+            ><span class="light">https://</span><strong>up.czedik.at</strong></a
+          >
+        </div>
       </div>
-    </div>
-    <footer>Made with ♥ by Hermann Czedik-Eysenberg</footer>
-    <div id="photocontainer"></div>
-    <script>
-      function sleep(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-      }
-
-      function partition(array, isValid) {
-        return array.reduce(
-          ([pass, fail], elem) => {
-            return isValid(elem)
-              ? [[...pass, elem], fail]
-              : [pass, [...fail, elem]];
-          },
-          [[], []]
-        );
-      }
-
-      function getRandomItem(items) {
-        return items[Math.floor(Math.random() * items.length)];
-      }
-
-      function getRandomIntInclusive(min, max) {
-        min = Math.ceil(min);
-        max = Math.floor(max);
-        return Math.floor(Math.random() * (max - min + 1) + min);
-      }
-
-      const photoContainer = document.querySelector("#photocontainer");
-
-      const numberOfPhotosToShow = 8;
-      const numberOfPhotosToPreload = 3;
-      const showTopPhotoForMilliseconds = 4000;
-      const maxRotation = 10;
-      const dropNewPhotosToTop = false;
-
-      let paused = false;
-
-      // all photos
-      let photos = new Set();
-
-      // new photos not shown yet
-      let newPhotos = [];
-
-      // photos currently getting preloaded
-      let preloadingPhotos = [];
-
-      // photos currently shown
-      let shownPhotos = [];
-
-      let topPhotoShownSince = 0;
-
-      async function fetchAndUpdatePhotos() {
-        let loadedPhotos;
-        try {
-          const response = await fetch("/api/list", {
-            cache: "no-cache",
-            // note: no-cache ensures that at least conditional request is always made (but if the content has not changed the response will be empty)
-          });
-          const jsonData = await response.json();
-          loadedPhotos = jsonData.photos;
-        } catch (error) {
-          console.error(error);
-          return;
+      <footer>Made with ♥ by Hermann Czedik-Eysenberg</footer>
+      <div id="photocontainer"></div>
+      <script>
+        function sleep(ms) {
+          return new Promise((resolve) => setTimeout(resolve, ms));
         }
 
-        if (photos.size > 0) {
-          newPhotos.push(...loadedPhotos.filter((p) => !photos.has(p)));
-        }
-        photos = new Set(loadedPhotos);
-      }
-
-      function preloadImage(name, isNew) {
-        const img = new Image();
-        img.src = "/api/serve/" + encodeURIComponent(name);
-        preloadingPhotos.unshift({
-          name,
-          img,
-          isNew,
-        });
-      }
-
-      function preloadNewPhotos() {
-        newPhotos.forEach((name) => preloadImage(name, true));
-        newPhotos = [];
-      }
-
-      function preloadMoreOldPhotosIfNeeded() {
-        let toPreloadCount =
-          numberOfPhotosToShow - shownPhotos.length + numberOfPhotosToPreload;
-
-        toPreloadCount = toPreloadCount - preloadingPhotos.length;
-
-        if (toPreloadCount <= 0) return;
-
-        const preloadingCandidates = new Set(photos);
-        preloadingPhotos
-          .map((p) => p.name)
-          .forEach((name) => preloadingCandidates.delete(name));
-        shownPhotos
-          .map((p) => p.name)
-          .forEach((name) => preloadingCandidates.delete(name));
-
-        toPreloadCount = Math.min(toPreloadCount, preloadingCandidates.size);
-
-        if (toPreloadCount <= 0) return;
-
-        const toPreload = [];
-        for (let i = 0; i < toPreloadCount; i++) {
-          // this is quite inefficient... we repeatedly convert the rather long Set to an array
-          const photoName = getRandomItem(Array.from(preloadingCandidates));
-          preloadingCandidates.delete(photoName);
-          toPreload.push(photoName);
-        }
-
-        for (const name of toPreload) {
-          preloadImage(name, false);
-        }
-      }
-
-      function showPhoto(preloadedPhoto, top, pos) {
-        pos = Math.min(shownPhotos.length, pos);
-
-        const photoDiv = document.createElement("div");
-        photoDiv.classList.add("photo");
-        if (top) {
-          photoDiv.classList.add("drop-to-top");
-        } else {
-          photoDiv.classList.add("slidein");
-        }
-        photoDiv.appendChild(preloadedPhoto.img);
-        const rotation = getRandomIntInclusive(-maxRotation, maxRotation);
-
-        const p = {
-          name: preloadedPhoto.name,
-          rotation,
-          shiftTop: 0,
-          shiftLeft: 0,
-          scale: 1,
-          photoDiv,
-        };
-        setPhotoTransformForPosition(p, pos);
-
-        if (top) {
-          shownPhotos.unshift(p);
-          photoContainer.append(photoDiv);
-        } else {
-          const previouslyOnPos = shownPhotos[pos];
-          shownPhotos.splice(pos, 0, p);
-          if (!previouslyOnPos) {
-            photoContainer.prepend(photoDiv);
-          } else {
-            previouslyOnPos.photoDiv.after(photoDiv);
-          }
-        }
-        if (pos === 0) {
-          topPhotoShownSince = Date.now();
-        }
-
-        return p;
-      }
-
-      function setPhotoTransformForPosition(p, pos) {
-        p.scale = 0.9 ** pos;
-        p.shiftTop = 5 * pos;
-        if (pos === 0) {
-          p.shiftLeft = 0;
-        } else {
-          p.shiftLeft = 25 + 5 * (pos - 1);
-        }
-        p.photoDiv.style.transform = `translate(${p.shiftLeft}vw, ${p.shiftTop}vh) scale(${p.scale}) rotate(${p.rotation}deg)`;
-      }
-
-      function repositionPhotos(slipDown, startPos) {
-        if (startPos === undefined) startPos = 0;
-        for (let pos = startPos; pos < shownPhotos.length; pos++) {
-          const p = shownPhotos[pos];
-          if (slipDown) {
-            p.photoDiv.style.transition = "transform 500ms";
-          } else {
-            p.photoDiv.style.transition = "transform 3s";
-          }
-
-          p.rotation = Math.max(
-            Math.min(p.rotation + getRandomIntInclusive(-3, 3), maxRotation),
-            -maxRotation
+        function partition(array, isValid) {
+          return array.reduce(
+            ([pass, fail], elem) => {
+              return isValid(elem)
+                ? [[...pass, elem], fail]
+                : [pass, [...fail, elem]];
+            },
+            [[], []]
           );
-          setPhotoTransformForPosition(p, pos);
         }
-      }
 
-      async function dropNewPhotos() {
-        const [completedNew, others] = partition(
-          preloadingPhotos,
-          (p) => p.img.complete && p.isNew
-        );
-        preloadingPhotos = others;
+        function getRandomItem(items) {
+          return items[Math.floor(Math.random() * items.length)];
+        }
 
-        for (const p of completedNew) {
-          const newPhoto = showPhoto(p, true, 0);
+        function getRandomIntInclusive(min, max) {
+          min = Math.ceil(min);
+          max = Math.floor(max);
+          return Math.floor(Math.random() * (max - min + 1) + min);
+        }
 
-          await sleep(700);
+        const photoContainer = document.querySelector("#photocontainer");
 
-          repositionPhotos(true, 1);
+        const numberOfPhotosToShow = 8;
+        const numberOfPhotosToPreload = 3;
+        const showTopPhotoForMilliseconds = 4000;
+        const maxRotation = 10;
+        const dropNewPhotosToTop = false;
 
-          let removedPhoto = null;
-          if (shownPhotos.length > numberOfPhotosToShow) {
-            removedPhoto = shownPhotos.pop();
-            removedPhoto.photoDiv.classList.add("slideout");
+        let paused = false;
+
+        // all photos
+        let photos = new Set();
+
+        // new photos not shown yet
+        let newPhotos = [];
+
+        // photos currently getting preloaded
+        let preloadingPhotos = [];
+
+        // photos currently shown
+        let shownPhotos = [];
+
+        let topPhotoShownSince = 0;
+
+        async function fetchAndUpdatePhotos() {
+          let loadedPhotos;
+          try {
+            const response = await fetch("/api/list", {
+              cache: "no-cache",
+              // note: no-cache ensures that at least conditional request is always made (but if the content has not changed the response will be empty)
+            });
+            const jsonData = await response.json();
+            loadedPhotos = jsonData.photos;
+          } catch (error) {
+            console.error(error);
+            return;
           }
 
-          await sleep(1000);
+          if (photos.size > 0) {
+            newPhotos.push(...loadedPhotos.filter((p) => !photos.has(p)));
+          }
+          photos = new Set(loadedPhotos);
+        }
 
-          newPhoto.photoDiv.classList.remove("drop-to-top");
+        function preloadImage(name, isNew) {
+          const img = new Image();
+          img.src = "/api/serve/" + encodeURIComponent(name);
+          preloadingPhotos.unshift({
+            name,
+            img,
+            isNew,
+          });
+        }
 
-          // this sleep here is just to ensure the class gets removed before the next animation
-          await sleep(100);
+        function preloadNewPhotos() {
+          newPhotos.forEach((name) => preloadImage(name, true));
+          newPhotos = [];
+        }
 
-          if (removedPhoto != null) {
-            photoContainer.removeChild(removedPhoto.photoDiv);
+        function preloadMoreOldPhotosIfNeeded() {
+          let toPreloadCount =
+            numberOfPhotosToShow - shownPhotos.length + numberOfPhotosToPreload;
+
+          toPreloadCount = toPreloadCount - preloadingPhotos.length;
+
+          if (toPreloadCount <= 0) return;
+
+          const preloadingCandidates = new Set(photos);
+          preloadingPhotos
+            .map((p) => p.name)
+            .forEach((name) => preloadingCandidates.delete(name));
+          shownPhotos
+            .map((p) => p.name)
+            .forEach((name) => preloadingCandidates.delete(name));
+
+          toPreloadCount = Math.min(toPreloadCount, preloadingCandidates.size);
+
+          if (toPreloadCount <= 0) return;
+
+          const toPreload = [];
+          for (let i = 0; i < toPreloadCount; i++) {
+            // this is quite inefficient... we repeatedly convert the rather long Set to an array
+            const photoName = getRandomItem(Array.from(preloadingCandidates));
+            preloadingCandidates.delete(photoName);
+            toPreload.push(photoName);
+          }
+
+          for (const name of toPreload) {
+            preloadImage(name, false);
           }
         }
-      }
 
-      async function slideInNewPhotos() {
-        const [completedNew, others] = partition(
-          preloadingPhotos,
-          (p) => p.img.complete && p.isNew
-        );
-        preloadingPhotos = others;
+        function showPhoto(preloadedPhoto, top, pos) {
+          pos = Math.min(shownPhotos.length, pos);
 
-        for (const p of completedNew) {
-          const newPhoto = showPhoto(p, false, 1);
-
-          await sleep(700);
-
-          repositionPhotos(true, 2);
-
-          let removedPhoto = null;
-          if (shownPhotos.length > numberOfPhotosToShow) {
-            removedPhoto = shownPhotos.pop();
-            removedPhoto.photoDiv.classList.add("slideout");
-          }
-
-          await sleep(1000);
-
-          newPhoto.photoDiv.classList.remove("slidein");
-
-          // this sleep here is just to ensure the class gets removed before the next animation
-          await sleep(100);
-
-          if (removedPhoto != null) {
-            photoContainer.removeChild(removedPhoto.photoDiv);
-          }
-        }
-      }
-
-      async function slideInOldPhotos() {
-        let photosToAddCount = numberOfPhotosToShow - shownPhotos.length;
-
-        if (photosToAddCount <= 0) return;
-
-        const [completedOld, others] = partition(
-          preloadingPhotos,
-          (p) => p.img.complete && !p.isNew
-        );
-        preloadingPhotos = others;
-
-        const photosToAdd = [];
-        while (photosToAddCount > 0 && completedOld.length > 0) {
-          photosToAdd.push(completedOld.pop());
-          photosToAddCount--;
-        }
-        preloadingPhotos.push(...completedOld);
-
-        if (photosToAdd.length === 0) return;
-
-        let pos = shownPhotos.length;
-        for (const p of photosToAdd) {
-          showPhoto(p, false, pos);
-          pos++;
-        }
-
-        await sleep(1000);
-
-        for (const p of shownPhotos) {
-          p.photoDiv.classList.remove("slidein");
-        }
-      }
-
-      async function slideOutTopPhoto() {
-        if (shownPhotos.length == 0) return;
-
-        if (Date.now() - topPhotoShownSince < showTopPhotoForMilliseconds) {
-          return;
-        }
-
-        const topPhoto = shownPhotos.shift();
-
-        topPhoto.photoDiv.classList.add("slideout-from-top");
-
-        repositionPhotos(false);
-
-        await slideInOldPhotos();
-
-        await sleep(3000);
-
-        topPhotoShownSince = Date.now();
-        photoContainer.removeChild(topPhoto.photoDiv);
-      }
-
-      async function renderLoop() {
-        while (!paused) {
-          await fetchAndUpdatePhotos();
-
-          // for fake testing the new photo animation:
-          //newPhotos.push(getRandomItem(Array.from(photos)));
-
-          preloadNewPhotos();
-
-          const start = Date.now();
-
-          if (dropNewPhotosToTop) {
-            await dropNewPhotos();
+          const photoDiv = document.createElement("div");
+          photoDiv.classList.add("photo");
+          if (top) {
+            photoDiv.classList.add("drop-to-top");
           } else {
-            await slideInNewPhotos();
+            photoDiv.classList.add("slidein");
+          }
+          photoDiv.appendChild(preloadedPhoto.img);
+          const rotation = getRandomIntInclusive(-maxRotation, maxRotation);
+
+          const p = {
+            name: preloadedPhoto.name,
+            rotation,
+            shiftTop: 0,
+            shiftLeft: 0,
+            scale: 1,
+            photoDiv,
+          };
+          setPhotoTransformForPosition(p, pos);
+
+          if (top) {
+            shownPhotos.unshift(p);
+            photoContainer.append(photoDiv);
+          } else {
+            const previouslyOnPos = shownPhotos[pos];
+            shownPhotos.splice(pos, 0, p);
+            if (!previouslyOnPos) {
+              photoContainer.prepend(photoDiv);
+            } else {
+              previouslyOnPos.photoDiv.after(photoDiv);
+            }
+          }
+          if (pos === 0) {
+            topPhotoShownSince = Date.now();
           }
 
-          await slideOutTopPhoto();
+          return p;
+        }
+
+        function setPhotoTransformForPosition(p, pos) {
+          p.scale = 0.9 ** pos;
+          p.shiftTop = 5 * pos;
+          if (pos === 0) {
+            p.shiftLeft = 0;
+          } else {
+            p.shiftLeft = 25 + 5 * (pos - 1);
+          }
+          p.photoDiv.style.transform = `translate(${p.shiftLeft}vw, ${p.shiftTop}vh) scale(${p.scale}) rotate(${p.rotation}deg)`;
+        }
+
+        function repositionPhotos(slipDown, startPos) {
+          if (startPos === undefined) startPos = 0;
+          for (let pos = startPos; pos < shownPhotos.length; pos++) {
+            const p = shownPhotos[pos];
+            if (slipDown) {
+              p.photoDiv.style.transition = "transform 500ms";
+            } else {
+              p.photoDiv.style.transition = "transform 3s";
+            }
+
+            p.rotation = Math.max(
+              Math.min(p.rotation + getRandomIntInclusive(-3, 3), maxRotation),
+              -maxRotation
+            );
+            setPhotoTransformForPosition(p, pos);
+          }
+        }
+
+        async function dropNewPhotos() {
+          const [completedNew, others] = partition(
+            preloadingPhotos,
+            (p) => p.img.complete && p.isNew
+          );
+          preloadingPhotos = others;
+
+          for (const p of completedNew) {
+            const newPhoto = showPhoto(p, true, 0);
+
+            await sleep(700);
+
+            repositionPhotos(true, 1);
+
+            let removedPhoto = null;
+            if (shownPhotos.length > numberOfPhotosToShow) {
+              removedPhoto = shownPhotos.pop();
+              removedPhoto.photoDiv.classList.add("slideout");
+            }
+
+            await sleep(1000);
+
+            newPhoto.photoDiv.classList.remove("drop-to-top");
+
+            // this sleep here is just to ensure the class gets removed before the next animation
+            await sleep(100);
+
+            if (removedPhoto != null) {
+              photoContainer.removeChild(removedPhoto.photoDiv);
+            }
+          }
+        }
+
+        async function slideInNewPhotos() {
+          const [completedNew, others] = partition(
+            preloadingPhotos,
+            (p) => p.img.complete && p.isNew
+          );
+          preloadingPhotos = others;
+
+          for (const p of completedNew) {
+            const newPhoto = showPhoto(p, false, 1);
+
+            await sleep(700);
+
+            repositionPhotos(true, 2);
+
+            let removedPhoto = null;
+            if (shownPhotos.length > numberOfPhotosToShow) {
+              removedPhoto = shownPhotos.pop();
+              removedPhoto.photoDiv.classList.add("slideout");
+            }
+
+            await sleep(1000);
+
+            newPhoto.photoDiv.classList.remove("slidein");
+
+            // this sleep here is just to ensure the class gets removed before the next animation
+            await sleep(100);
+
+            if (removedPhoto != null) {
+              photoContainer.removeChild(removedPhoto.photoDiv);
+            }
+          }
+        }
+
+        async function slideInOldPhotos() {
+          let photosToAddCount = numberOfPhotosToShow - shownPhotos.length;
+
+          if (photosToAddCount <= 0) return;
+
+          const [completedOld, others] = partition(
+            preloadingPhotos,
+            (p) => p.img.complete && !p.isNew
+          );
+          preloadingPhotos = others;
+
+          const photosToAdd = [];
+          while (photosToAddCount > 0 && completedOld.length > 0) {
+            photosToAdd.push(completedOld.pop());
+            photosToAddCount--;
+          }
+          preloadingPhotos.push(...completedOld);
+
+          if (photosToAdd.length === 0) return;
+
+          let pos = shownPhotos.length;
+          for (const p of photosToAdd) {
+            showPhoto(p, false, pos);
+            pos++;
+          }
+
+          await sleep(1000);
+
+          for (const p of shownPhotos) {
+            p.photoDiv.classList.remove("slidein");
+          }
+        }
+
+        async function slideOutTopPhoto() {
+          if (shownPhotos.length == 0) return;
+
+          if (Date.now() - topPhotoShownSince < showTopPhotoForMilliseconds) {
+            return;
+          }
+
+          const topPhoto = shownPhotos.shift();
+
+          topPhoto.photoDiv.classList.add("slideout-from-top");
+
+          repositionPhotos(false);
 
           await slideInOldPhotos();
 
-          preloadMoreOldPhotosIfNeeded();
+          await sleep(3000);
 
-          const timeElapsed = Date.now() - start;
+          topPhotoShownSince = Date.now();
+          photoContainer.removeChild(topPhoto.photoDiv);
+        }
 
-          const sleepTime = 1000 - timeElapsed;
-          if (sleepTime > 0) {
-            await sleep(sleepTime);
+        async function renderLoop() {
+          while (!paused) {
+            await fetchAndUpdatePhotos();
+
+            // for fake testing the new photo animation:
+            //newPhotos.push(getRandomItem(Array.from(photos)));
+
+            preloadNewPhotos();
+
+            const start = Date.now();
+
+            if (dropNewPhotosToTop) {
+              await dropNewPhotos();
+            } else {
+              await slideInNewPhotos();
+            }
+
+            await slideOutTopPhoto();
+
+            await slideInOldPhotos();
+
+            preloadMoreOldPhotosIfNeeded();
+
+            const timeElapsed = Date.now() - start;
+
+            const sleepTime = 1000 - timeElapsed;
+            if (sleepTime > 0) {
+              await sleep(sleepTime);
+            }
           }
         }
-      }
 
-      renderLoop();
-    </script>
+        renderLoop();
+      </script>
+    </main>
   </body>
 </html>

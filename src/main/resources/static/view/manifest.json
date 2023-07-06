@@ -2,7 +2,7 @@
   "name": "Photo Upp",
   "icons": [
     {
-      "src": "../ivy.svg",
+      "src": "/ivy.svg",
       "type": "image/svg+xml",
       "sizes": "any"
     }
