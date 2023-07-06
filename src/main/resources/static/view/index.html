@@ -214,6 +214,7 @@
       const numberOfPhotosToPreload = 3;
       const showTopPhotoForMilliseconds = 4000;
       const maxRotation = 10;
+      const dropNewPhotosToTop = false;
 
       let paused = false;
 
@@ -300,6 +301,8 @@
       }
 
       function showPhoto(preloadedPhoto, top, pos) {
+        pos = Math.min(shownPhotos.length, pos);
+
         const photoDiv = document.createElement("div");
         photoDiv.classList.add("photo");
         if (top) {
@@ -324,12 +327,19 @@
           shownPhotos.unshift(p);
           photoContainer.append(photoDiv);
         } else {
-          shownPhotos.push(p);
-          photoContainer.prepend(photoDiv);
+          const previouslyOnPos = shownPhotos[pos];
+          shownPhotos.splice(pos, 0, p);
+          if (!previouslyOnPos) {
+            photoContainer.prepend(photoDiv);
+          } else {
+            previouslyOnPos.photoDiv.after(photoDiv);
+          }
         }
         if (pos === 0) {
           topPhotoShownSince = Date.now();
         }
+
+        return p;
       }
 
       function setPhotoTransformForPosition(p, pos) {
@@ -343,15 +353,12 @@
         p.photoDiv.style.transform = `translate(${p.shiftLeft}vw, ${p.shiftTop}vh) scale(${p.scale}) rotate(${p.rotation}deg)`;
       }
 
-      function repositionPhotos(slipDown) {
-        let pos = -1;
-        for (const p of shownPhotos) {
-          pos++;
-          if (slipDown && pos === 0) {
-            continue;
-          }
+      function repositionPhotos(slipDown, startPos) {
+        if (startPos === undefined) startPos = 0;
+        for (let pos = startPos; pos < shownPhotos.length; pos++) {
+          const p = shownPhotos[pos];
           if (slipDown) {
-            p.photoDiv.style.transition = "transform 300ms";
+            p.photoDiv.style.transition = "transform 500ms";
           } else {
             p.photoDiv.style.transition = "transform 3s";
           }
@@ -372,11 +379,11 @@
         preloadingPhotos = others;
 
         for (const p of completedNew) {
-          showPhoto(p, true, 0);
+          const newPhoto = showPhoto(p, true, 0);
 
           await sleep(700);
 
-          repositionPhotos(true);
+          repositionPhotos(true, 1);
 
           let removedPhoto = null;
           if (shownPhotos.length > numberOfPhotosToShow) {
@@ -386,7 +393,40 @@
 
           await sleep(1000);
 
-          shownPhotos[0].photoDiv.classList.remove("drop-to-top");
+          newPhoto.photoDiv.classList.remove("drop-to-top");
+
+          // this sleep here is just to ensure the class gets removed before the next animation
+          await sleep(100);
+
+          if (removedPhoto != null) {
+            photoContainer.removeChild(removedPhoto.photoDiv);
+          }
+        }
+      }
+
+      async function slideInNewPhotos() {
+        const [completedNew, others] = partition(
+          preloadingPhotos,
+          (p) => p.img.complete && p.isNew
+        );
+        preloadingPhotos = others;
+
+        for (const p of completedNew) {
+          const newPhoto = showPhoto(p, false, 1);
+
+          await sleep(700);
+
+          repositionPhotos(true, 2);
+
+          let removedPhoto = null;
+          if (shownPhotos.length > numberOfPhotosToShow) {
+            removedPhoto = shownPhotos.pop();
+            removedPhoto.photoDiv.classList.add("slideout");
+          }
+
+          await sleep(1000);
+
+          newPhoto.photoDiv.classList.remove("slidein");
 
           // this sleep here is just to ensure the class gets removed before the next animation
           await sleep(100);
@@ -455,11 +495,18 @@
         while (!paused) {
           await fetchAndUpdatePhotos();
 
+          // for fake testing the new photo animation:
+          //newPhotos.push(getRandomItem(Array.from(photos)));
+
           preloadNewPhotos();
 
           const start = Date.now();
 
-          await dropNewPhotos();
+          if (dropNewPhotosToTop) {
+            await dropNewPhotos();
+          } else {
+            await slideInNewPhotos();
+          }
 
           await slideOutTopPhoto();
 
