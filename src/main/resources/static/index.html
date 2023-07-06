@@ -12,22 +12,51 @@
       type="text/css"
     />
     <style>
+      @font-face {
+        font-family: "Great Vibes";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url("great-vibes.woff2") format("woff2");
+      }
+
       body {
         font-family: helvetica, arial, sans-serif;
-        padding: 3rem;
+        padding: 1rem;
         text-align: center;
+        background-color: #fffcf2;
+        color: black;
+      }
+
+      h1 {
+        font-family: "Great Vibes", cursive, serif;
+        font-size: 50px;
+        margin: 0;
+        font-weight: normal;
+      }
+
+      .ring-symbol {
+        vertical-align: -5px;
+        color: #b8860b;
       }
 
       #up-button {
+        font-family: "Great Vibes", cursive, serif;
+        font-size: 32px;
+        font-weight: bold;
+        line-height: 0.9;
+        color: white;
+        text-shadow: black 1px 0 10px;
         display: inline-block;
-        background-color: rgb(107, 107, 247);
+        height: 200px;
+        width: 200px;
+        background-image: url("ivy.svg");
+        background-size: contain;
+        background-repeat: no-repeat;
         text-align: center;
-        font-size: 50px;
-        padding: 1rem;
+        padding-top: 65px;
         margin: auto;
-        margin-bottom: 3rem;
-        border-radius: 1rem;
-        box-shadow: 8px 8px 0 black;
+        cursor: pointer;
       }
 
       .dz-size {
@@ -38,8 +67,8 @@
         padding: 0;
       }
       .dropzone .dz-preview .dz-image {
-        width: 150px;
-        height: 150px;
+        width: 120px;
+        height: 120px;
       }
       .dropzone .dz-preview .dz-image img {
         width: 100%;
@@ -49,8 +78,9 @@
   </head>
   <body>
     <main>
-      <div id="up-button">Foto hochladen</div>
-      <br />Bereits hochgeladen:
+      <h1 class="title">Isabella <span class="ring-symbol">⚭</span> Oliver</h1>
+      <div id="up-button">Foto<br />hochladen</div>
+      <div>Bereits von diesem Gerät hochgeladen:</div>
       <form class="dropzone" id="my-form" action="/api/up"></form>
     </main>
     <script>
