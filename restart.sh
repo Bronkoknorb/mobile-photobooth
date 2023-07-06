@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+cd "$(dirname "$0")"
+
+git pull
+
 sudo docker build --pull --tag photoupp .
 
 sudo docker stop photoupp
