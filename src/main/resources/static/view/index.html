@@ -6,12 +6,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PhotoUpp</title>
     <style>
+      @font-face {
+        font-family: "Great Vibes";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url("../great-vibes.woff2") format("woff2");
+      }
+
       body {
         font-family: helvetica, arial, sans-serif;
         padding: 0;
         margin: 0;
+        color: black;
         background-color: #fffcf2;
         overflow: hidden;
+      }
+
+      h1 {
+        font-family: "Great Vibes", cursive, serif;
+        font-size: 6vmin;
+        margin: 0;
+        font-weight: normal;
+        line-height: 0.9;
+        display: block;
+        position: absolute;
+        text-align: center;
+        left: 3vmin;
+        top: 3vmin;
+      }
+      .ring-symbol {
+        vertical-align: -5px;
+        color: #b8860b;
+      }
+
+      .title {
+        font-family: "Great Vibes", cursive, serif;
+        font-size: 10vmin;
+        font-weight: normal;
+        line-height: 0.9;
+        display: block;
+        width: 55vw;
+        position: absolute;
+        text-align: center;
+        top: 5vmin;
+        left: 50%;
+        translate: -50% 0;
+        color: #01735a;
+        text-shadow: 0.2vmin 0.2vmin #5e5e5e4f;
+      }
+
+      footer {
+        font-size: 1.5vmin;
+        display: block;
+        position: absolute;
+        left: 1vmin;
+        bottom: 1vmin;
       }
 
       .photo {
@@ -102,16 +152,16 @@
         top: 1vmin;
         background-color: white;
         border-radius: 3vmin;
-        padding: 3vmin;
+        padding: 2vmin;
         text-align: center;
-        font-size: 3.5vmin;
+        font-size: 2vmin;
       }
       .qr a {
         color: black;
       }
       .qr img {
-        width: 20vmin;
-        height: 20vmin;
+        width: 15vmin;
+        height: 15vmin;
       }
       .light {
         color: rgb(141, 141, 141);
@@ -119,6 +169,8 @@
     </style>
   </head>
   <body>
+    <h1>Isabella<br /><span class="ring-symbol">⚭</span><br />Oliver</h1>
+    <div class="title">Fotos von damals und heute</div>
     <div class="qr">
       <div>Fotos hochladen:</div>
       <img src="qr.svg" alt="QR Code" />
@@ -128,6 +180,7 @@
         >
       </div>
     </div>
+    <footer>Made with ♥ by Hermann Czedik-Eysenberg</footer>
     <div id="photocontainer"></div>
     <script>
       function sleep(ms) {
@@ -160,6 +213,7 @@
       const numberOfPhotosToShow = 8;
       const numberOfPhotosToPreload = 3;
       const showTopPhotoForMilliseconds = 4000;
+      const maxRotation = 10;
 
       let paused = false;
 
@@ -254,7 +308,7 @@
           photoDiv.classList.add("slidein");
         }
         photoDiv.appendChild(preloadedPhoto.img);
-        const rotation = getRandomIntInclusive(-10, 10);
+        const rotation = getRandomIntInclusive(-maxRotation, maxRotation);
 
         const p = {
           name: preloadedPhoto.name,
@@ -284,7 +338,7 @@
         if (pos === 0) {
           p.shiftLeft = 0;
         } else {
-          p.shiftLeft = 20 + 5 * (pos - 1);
+          p.shiftLeft = 25 + 5 * (pos - 1);
         }
         p.photoDiv.style.transform = `translate(${p.shiftLeft}vw, ${p.shiftTop}vh) scale(${p.scale}) rotate(${p.rotation}deg)`;
       }
@@ -302,7 +356,10 @@
             p.photoDiv.style.transition = "transform 3s";
           }
 
-          p.rotation += getRandomIntInclusive(-3, 3);
+          p.rotation = Math.max(
+            Math.min(p.rotation + getRandomIntInclusive(-3, 3), maxRotation),
+            -maxRotation
+          );
           setPhotoTransformForPosition(p, pos);
         }
       }
